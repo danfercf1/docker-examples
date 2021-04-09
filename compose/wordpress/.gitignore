@@ -1,0 +1,9 @@
+# Docker volumes
+
+db-data/
+app/*
+
+# Not ignore configuration for WP
+!app/wp-config.php
+
+
