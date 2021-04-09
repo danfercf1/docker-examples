@@ -22,7 +22,7 @@ The services in the docker compose file are:
 docker-compose up
 ```
 
-3. Check if 3 of the services are running:
+3. Check if all the services (3) are running right:
 
 ```bash
 docker ps
