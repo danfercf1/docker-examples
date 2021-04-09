@@ -6,7 +6,7 @@ This example can be found in `compose/wordpress/`
 
 The example is to raise up the wordpress service using environment variables to setup the DB access and it uses `xdebug` also, it's in order to debug the wordpress project.
 
-The service in the docker compose file are:
+The services in the docker compose file are:
 
 * db: MySql server, it uses mysql version 5.7 and has a persistent volume in `db-data` folder.
 * phpmyadmin: PHP my admin service, it is for access to the DB it was configured in `8090` port
