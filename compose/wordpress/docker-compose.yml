@@ -4,7 +4,7 @@ services:
     db:
       image: mysql:5.7
       volumes:
-        - ./db-data:/var/lib/mysql
+        - db-data:/var/lib/mysql
       restart: always
       environment:
         MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -46,4 +46,5 @@ services:
         WORDPRESS_DEBUG: 1
         WORDPRESS_DEBUG_LOG: 1
         WP_ENVIRONMENT_TYPE: 'development'
-    
+volumes:
+  db-data: 
