@@ -5,6 +5,7 @@ services:
       image: yobasystems/alpine-mariadb
       volumes:
         - db-data:/var/lib/mysql
+        - ./configuration/minimal:/etc/mysql/conf.d
       restart: unless-stopped
       ports:
         - 3306:3306
