@@ -9,5 +9,6 @@ services:
         ports:
           - 8090:80
         environment:
+          UPLOAD_LIMIT: 300M
           PMA_HOST: ${PMA_HOST}
           MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
