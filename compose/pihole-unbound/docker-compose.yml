@@ -6,7 +6,7 @@ services:
     volumes:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
-      - ./html/:/var/www/html/
+      - ./other/:/var/www/html/other/
     container_name: pihole
     hostname: ${HOSTNAME}
     domainname: ${DOMAIN_NAME}
