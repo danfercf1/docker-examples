@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    volumes:
+      - ./config:/config
+    container_name: code-server
+    restart: unless-stopped
+    ports:
+      - 8443:8443
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: ${TIME_ZONE}
+      # PASSWORD: ${PASSWORD} #optional
+      HASHED_PASSWORD: ${HASHED_PASSWORD} #optional
+      # SUDO_PASSWORD: ${SUDO_PASSWORD} #optional
+      SUDO_PASSWORD_HASH: ${SUDO_PASSWORD_HASHED} #optional
+      # PROXY_DOMAIN: ${PROXY_DOMAIN} #optional
+      # DEFAULT_WORKSPACE: ${DEFAULT_WORKSPACE} #optional: /config/workspace
