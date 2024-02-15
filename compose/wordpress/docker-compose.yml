@@ -1,28 +1,28 @@
 version: '3'
 
 services:
-    db:
-      image: mysql:5.7
+    db-wp:
+      image: mariadb:10.11
       volumes:
         - db-data:/var/lib/mysql
-      restart: always
+      restart: unless-stopped
       environment:
         MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
         MYSQL_DATABASE: ${MYSQL_DATABASE}
         MYSQL_USER: ${MYSQL_USER}
         MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     
-    phpmyadmin:
-      image: phpmyadmin/phpmyadmin:latest
-      depends_on:
-        - db
-      container_name: phpmyadmin
-      restart: always
-      ports:
-        - 8090:80
-      environment:
-        PMA_HOST: db
-        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    # phpmyadmin:
+    #   image: phpmyadmin/phpmyadmin:latest
+    #   depends_on:
+    #     - db
+    #   container_name: phpmyadmin
+    #   restart: unless-stopped
+    #   ports:
+    #     - 8090:80
+    #   environment:
+    #     PMA_HOST: db
+    #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
 
     wordpress:
       build:
@@ -30,21 +30,26 @@ services:
         dockerfile: Dockerfile
       depends_on:
         - db
-        - phpmyadmin
+        # - phpmyadmin
       volumes:
         - ./docker/php.conf.ini:/usr/local/etc/php/conf.d/conf.ini
         - ./app:/var/www/html
       ports:
         - "8000:80"
-      restart: always
+      restart: unless-stopped
       environment:
-        WORDPRESS_DB_HOST: db:3306
+        WORDPRESS_DB_HOST: db-wp:3306
         WORDPRESS_DB_USER: ${MYSQL_USER}
         WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
         WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
         WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX}
-        WORDPRESS_DEBUG: 1
-        WORDPRESS_DEBUG_LOG: 1
+        # WORDPRESS_DEBUG: 1
+        # WORDPRESS_DEBUG_LOG: 1
         WP_ENVIRONMENT_TYPE: 'development'
+
+networks:
+  default:
+    external:
+      name: ghost-services
 volumes:
-  db-data: 
+  db-data:
