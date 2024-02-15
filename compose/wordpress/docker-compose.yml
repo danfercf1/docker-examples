@@ -34,8 +34,8 @@ services:
       volumes:
         - ./docker/php.conf.ini:/usr/local/etc/php/conf.d/conf.ini
         - ./app:/var/www/html
-      ports:
-        - "8000:80"
+      # ports: // If this configuration will be used with a nginx proxy upstream it should be removed a used the internal port only
+      #   - "8000:80"
       restart: unless-stopped
       environment:
         WORDPRESS_DB_HOST: db-wp:3306
