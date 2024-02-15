@@ -49,7 +49,7 @@ services:
 
 networks:
   default:
-    external:
-      name: ghost-services
+    name: ghost-services
+    external: true
 volumes:
   db-data:
