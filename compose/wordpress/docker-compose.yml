@@ -29,7 +29,7 @@ services:
         context: ./docker
         dockerfile: Dockerfile
       depends_on:
-        - db
+        - db-wp
         # - phpmyadmin
       volumes:
         - ./docker/php.conf.ini:/usr/local/etc/php/conf.d/conf.ini
