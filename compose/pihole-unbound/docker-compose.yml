@@ -3,10 +3,6 @@ version: '3.0'
 services:
   pihole:
     image: cbcrowe/pihole-unbound:latest
-    volumes:
-      - etc_pihole-unbound:/etc/pihole:rw
-      - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
-      - ./other/:/var/www/html/other/
     container_name: pihole
     hostname: ${HOSTNAME}
     domainname: ${DOMAIN_NAME}
@@ -14,9 +10,12 @@ services:
       - 443:443/tcp
       - 53:53/tcp
       - 53:53/udp
-      - ${PIHOLE_WEBPORT:-80}:80/tcp #Allows use of different port to access pihole web interface when other docker containers use port 80
-      - 5335:5335/tcp # Uncomment to enable unbound access on local server
-      # - 22/tcp # Uncomment to enable SSH
+      - ${PIHOLE_WEBPORT:-80}:80/tcp
+      - 5335:5335/tcp
+    volumes:
+      - etc_pihole-unbound:/etc/pihole:rw
+      - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
+      - ./unbound-config:/etc/unbound/unbound.conf.d # Mount for custom Unbound config
     environment:
       - FTLCONF_REPLY_ADDR4=${FTLCONF_REPLY_ADDR4}
       - TZ=${TZ:-UTC}
@@ -29,9 +28,9 @@ services:
       - PIHOLE_DNS_=127.0.0.1#5335
       - DNSSEC="true"
       - DNSMASQ_LISTENING=single
-    
     restart: unless-stopped
 
 volumes:
   etc_pihole-unbound:
   etc_pihole_dnsmasq-unbound:
+  unbound-config: # Persistent volume for Unbound configuration
