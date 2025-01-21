@@ -16,6 +16,7 @@ services:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
       - ./unbound-config:/etc/unbound/unbound.conf.d # Mount for custom Unbound config
+      - ./unbound-logs:/var/log/unbound
     environment:
       - FTLCONF_REPLY_ADDR4=${FTLCONF_REPLY_ADDR4}
       - TZ=${TZ:-UTC}
