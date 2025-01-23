@@ -12,8 +12,10 @@ services:
       - OPENVPN_OPTS=--auth-user-pass /etc/openvpn/credentials
     volumes:
       - ./openvpn-config/protonvpn.conf:/vpn/vpn.conf  # Mount the correct VPN config file
-      - ./openvpn-config/vpn-credentials.txt:/etc/openvpn/credentials
+      - ./openvpn-config/vpn-credentials.txt:/etc/openvpn/credentials  # Mount the credentials file
     restart: unless-stopped
+    networks:
+      - vpn_network
 
   pihole:
     image: cbcrowe/pihole-unbound:latest
@@ -46,14 +48,13 @@ services:
       - DNSMASQ_LISTENING=single
     restart: unless-stopped
     networks:
-      custom_network:
-        aliases:
-          - pihole.local
+      - vpn_network
 
 networks:
-  custom_network:
+  vpn_network:
     driver: bridge
 
 volumes:
   etc_pihole-unbound:
-  etc_pihole_dnsmasq-unbound: 
+  etc_pihole_dnsmasq-unbound:
+  unbound-config:
