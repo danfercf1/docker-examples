@@ -29,6 +29,9 @@ services:
     volumes:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
+      - ./unbound-config:/etc/unbound/unbound.conf.d
+      - ./unbound-logs:/var/log/unbound
+      - ./other/:/var/www/html/other/
     environment:
       - FTLCONF_REPLY_ADDR4=${FTLCONF_REPLY_ADDR4}
       - TZ=${TZ:-UTC}
