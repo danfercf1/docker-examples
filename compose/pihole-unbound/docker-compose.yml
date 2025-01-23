@@ -29,8 +29,6 @@ services:
     volumes:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
-      - ./unbound-config:/etc/unbound/unbound.conf.d
-      - ./unbound-logs:/var/log/unbound
     environment:
       - FTLCONF_REPLY_ADDR4=${FTLCONF_REPLY_ADDR4}
       - TZ=${TZ:-UTC}
@@ -43,10 +41,15 @@ services:
       - PIHOLE_DNS_=127.0.0.1#5335
       - DNSSEC="true"
       - DNSMASQ_LISTENING=single
-    network_mode: "service:vpn" # Use VPN network
-    depends_on:
-      - vpn
     restart: unless-stopped
+    networks:
+      custom_network:
+        aliases:
+          - pihole.local
+
+networks:
+  custom_network:
+    driver: bridge
 
 volumes:
   etc_pihole-unbound:
