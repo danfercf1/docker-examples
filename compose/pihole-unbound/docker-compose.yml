@@ -11,7 +11,7 @@ services:
     environment:
       - OPENVPN_OPTS=--auth-user-pass /etc/openvpn/credentials
     volumes:
-      - ./openvpn-config/protonvpn.ovpn:/vpn/vpn.conf  # Mount the correct VPN config file
+      - ./openvpn-config/protonvpn.conf:/vpn/vpn.conf  # Mount the correct VPN config file
       - ./openvpn-config/vpn-credentials.txt:/etc/openvpn/credentials
     restart: unless-stopped
 
