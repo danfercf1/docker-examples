@@ -11,7 +11,7 @@ services:
     environment:
       - OPENVPN_OPTS=--auth-user-pass /etc/openvpn/credentials
     volumes:
-      - ./openvpn-config/protonvpn.ovpn:/etc/openvpn/ovpn.conf
+      - ./openvpn-config/protonvpn.ovpn:/vpn/vpn.conf  # Mount the correct VPN config file
       - ./openvpn-config/vpn-credentials.txt:/etc/openvpn/credentials
     restart: unless-stopped
 
@@ -25,7 +25,7 @@ services:
       - 53:53/tcp
       - 53:53/udp
       - ${PIHOLE_WEBPORT:-80}:80/tcp
-      - 5335:5335/tcp
+      - 5353:5353/tcp
     volumes:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
@@ -41,7 +41,7 @@ services:
       - REV_SERVER_TARGET=${REV_SERVER_TARGET}
       - REV_SERVER_DOMAIN=${REV_SERVER_DOMAIN}
       - REV_SERVER_CIDR=${REV_SERVER_CIDR}
-      - PIHOLE_DNS_=127.0.0.1#5335
+      - PIHOLE_DNS_=127.0.0.1#5353
       - DNSSEC="true"
       - DNSMASQ_LISTENING=single
     restart: unless-stopped
@@ -56,5 +56,4 @@ networks:
 
 volumes:
   etc_pihole-unbound:
-  etc_pihole_dnsmasq-unbound:
-  unbound-config:
+  etc_pihole_dnsmasq-unbound: 
