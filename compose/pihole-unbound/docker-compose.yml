@@ -1,6 +1,20 @@
 version: '3.0'
 
 services:
+  vpn:
+    image: dperson/openvpn-client
+    container_name: vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    environment:
+      - OPENVPN_OPTS=--auth-user-pass /etc/openvpn/credentials
+    volumes:
+      - ./openvpn-config/protonvpn.ovpn:/etc/openvpn/ovpn.conf
+      - ./openvpn-config/vpn-credentials.txt:/etc/openvpn/credentials
+    restart: unless-stopped
+
   pihole:
     image: cbcrowe/pihole-unbound:latest
     container_name: pihole
@@ -15,7 +29,7 @@ services:
     volumes:
       - etc_pihole-unbound:/etc/pihole:rw
       - etc_pihole_dnsmasq-unbound:/etc/dnsmasq.d:rw
-      - ./unbound-config:/etc/unbound/unbound.conf.d # Mount for custom Unbound config
+      - ./unbound-config:/etc/unbound/unbound.conf.d
       - ./unbound-logs:/var/log/unbound
     environment:
       - FTLCONF_REPLY_ADDR4=${FTLCONF_REPLY_ADDR4}
@@ -29,9 +43,12 @@ services:
       - PIHOLE_DNS_=127.0.0.1#5335
       - DNSSEC="true"
       - DNSMASQ_LISTENING=single
+    network_mode: "service:vpn" # Use VPN network
+    depends_on:
+      - vpn
     restart: unless-stopped
 
 volumes:
   etc_pihole-unbound:
   etc_pihole_dnsmasq-unbound:
-  unbound-config: # Persistent volume for Unbound configuration
+  unbound-config:
