@@ -43,7 +43,7 @@ services:
       - REV_SERVER_TARGET=${REV_SERVER_TARGET}
       - REV_SERVER_DOMAIN=${REV_SERVER_DOMAIN}
       - REV_SERVER_CIDR=${REV_SERVER_CIDR}
-      - PIHOLE_DNS_=127.0.0.1#5353
+      - PIHOLE_DNS=127.0.0.1#5353
       - DNSSEC="true"
       - DNSMASQ_LISTENING=single
     restart: unless-stopped
