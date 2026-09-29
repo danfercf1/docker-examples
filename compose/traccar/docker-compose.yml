@@ -1,0 +1,59 @@
+version: '3'
+
+services:
+  traccar-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traccar
+      POSTGRES_USER: traccar
+      POSTGRES_PASSWORD: ${TRACCAR_DB_PASSWORD}
+    volumes:
+      - traccar-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traccar -d traccar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traccar-network
+
+  traccar:
+    image: traccar/traccar:6.16.0
+    container_name: traccar
+    restart: unless-stopped
+    depends_on:
+      traccar-db:
+        condition: service_healthy
+    ports:
+      - "5013:5013/tcp"
+    environment:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_DRIVER: org.postgresql.Driver
+      DATABASE_URL: jdbc:postgresql://traccar-db:5432/traccar
+      DATABASE_USER: traccar
+      DATABASE_PASSWORD: ${TRACCAR_DB_PASSWORD}
+      PROTOCOLS_ENABLE: osmand,h02
+      WEB_URL: https://gps.dfcfhub.org
+    volumes:
+      - traccar-logs:/opt/traccar/logs
+      - traccar-data:/opt/traccar/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - traccar-network
+      - ghost-services
+
+networks:
+  traccar-network:
+  ghost-services:
+    external: true
+
+volumes:
+  traccar-db-data:
+  traccar-logs:
+  traccar-data:
