@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer del backup de Traccar (diario 03:00 America/La_Paz)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/La_Paz
+Persistent=true
+Unit=traccar-backup.service
+
+[Install]
+WantedBy=timers.target

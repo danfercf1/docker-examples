@@ -1,0 +1,12 @@
+[Unit]
+Description=Pull del backup de Traccar desde el VPS (rsync)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=daniel
+Group=daniel
+EnvironmentFile=/etc/traccar-backup-pull.env
+# Si el repo vive en otra ruta en el Vostro, ajustar esta línea.
+ExecStart=/home/daniel/projects/docker-examples/compose/traccar/backup/traccar-backup-pull.sh
