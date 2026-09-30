@@ -1,0 +1,63 @@
+# Reglas de clasificación de eventos de Traccar -> ntfy.
+# Cada entrada tiene: enabled (true/false) y category (urgent | info).
+# Tipos y alarmas NO listados se descartan (log en nivel debug).
+# Se lee al arrancar: un cambio aquí requiere reiniciar el contenedor.
+# El cooldown (COOLDOWN_MINUTES) y los minutos de offline_sustained
+# (OFFLINE_SUSTAINED_MINUTES) se configuran por variables de entorno.
+# Los temporizadores de offline_sustained y el cooldown viven en memoria:
+# se pierden si el contenedor se reinicia.
+
+events:
+  # -- urgent por defecto --
+  geofenceExit: {enabled: true, category: urgent}
+  # -- info por defecto --
+  deviceOverspeed: {enabled: true, category: info}
+  geofenceEnter: {enabled: true, category: info}
+  ignitionOn: {enabled: true, category: info}
+  ignitionOff: {enabled: true, category: info}
+  # -- desactivados por defecto (activables) --
+  # El ST-906L se conecta/desconecta en ciclos de ~30 s: estos eventos
+  # generarían spam si se activan sin más filtros.
+  deviceOnline: {enabled: false, category: info}
+  deviceOffline: {enabled: false, category: info}
+  deviceUnknown: {enabled: false, category: info}
+  deviceMoving: {enabled: false, category: info}
+  deviceStopped: {enabled: false, category: info}
+  deviceInactive: {enabled: false, category: info}
+  geofenceCrossed: {enabled: false, category: info}
+  unaccompaniedMotion: {enabled: false, category: urgent}
+  commandResult: {enabled: false, category: info}
+  media: {enabled: false, category: info}
+  maintenance: {enabled: false, category: info}
+  driverChanged: {enabled: false, category: info}
+  queuedCommandSent: {enabled: false, category: info}
+  deviceFuelDrop: {enabled: false, category: urgent}
+  deviceFuelIncrease: {enabled: false, category: info}
+
+alarms:
+  # urgent
+  powerCut: {enabled: true, category: urgent}
+  sos: {enabled: true, category: urgent}
+  tow: {enabled: true, category: urgent}
+  vibration: {enabled: true, category: urgent}
+  jamming: {enabled: true, category: urgent}
+  tampering: {enabled: true, category: urgent}
+  removing: {enabled: true, category: urgent}
+  gpsAntennaCut: {enabled: true, category: urgent}
+  powerOff: {enabled: true, category: urgent}
+  # info
+  lowBattery: {enabled: true, category: info}
+  lowPower: {enabled: true, category: info}
+  powerRestored: {enabled: true, category: info}
+
+special:
+  # deviceMoving con position.attributes.ignition == false
+  moving_ignition_off: {enabled: true, category: urgent}
+  # aviso urgente si no llega ningún evento en N minutos tras un deviceOffline
+  # (los eventos crudos deviceOnline/deviceOffline pueden seguir desactivados)
+  offline_sustained: {enabled: true, category: urgent}
+
+# Overrides por dispositivo (uniqueId o nombre). Ejemplo:
+# device_overrides:
+#   "1234567890":          # uniqueId del ST-906L
+#     deviceMoving: {enabled: true}
