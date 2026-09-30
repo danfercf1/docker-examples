@@ -1,31 +1,23 @@
-import asyncio
 import json
 
 import httpx
-import pytest
 
-from conftest import make_payload
+from conftest import make_payload, post_event
 from app.notify import Notifier
 
 
-async def post_event(app, payload, token="token-prueba"):
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
-        r = await client.post("/event", json=payload, headers=headers)
-    # drena las tareas de envío en segundo plano para aserciones deterministas
-    if r.status_code == 200 and app.state.send_tasks:
-        await asyncio.gather(*list(app.state.send_tasks), return_exceptions=True)
-    return r
-
+# Con StubTraccarClient() por defecto (sin destinatarios para ningún
+# dispositivo) todo cae al tema de respaldo NTFY_TOPIC_ADMIN: reproduce el
+# comportamiento previo a perfiles/destinatarios (compatibilidad).
 
 # -- categorías e interruptores enabled ----------------------------------------
 async def test_alarm_urgente(build):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
     r = await post_event(app, make_payload("alarm", alarm="powerCut"))
     assert r.status_code == 200
     assert len(rec.sent) == 1
-    title, body, category, click = rec.sent[0]
+    topic, title, body, category, click = rec.sent[0]
+    assert topic == "admin-prueba"
     assert category == "urgent"
     assert "SinoTrack ST-906L" in title and "Corte de corriente" in title
     assert "9 km/h" in body            # 5 nudos * 1.852 = 9.26 km/h
@@ -34,16 +26,16 @@ async def test_alarm_urgente(build):
 
 
 async def test_evento_info(build):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
     await post_event(app, make_payload("ignitionOn"))
     assert len(rec.sent) == 1
-    title, _, category, _ = rec.sent[0]
+    _, title, _, category, _ = rec.sent[0]
     assert category == "info"
     assert "Contacto encendido" in title
 
 
 async def test_desactivados_por_defecto_y_no_listados(build):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
     await post_event(app, make_payload("deviceOnline"))
     await post_event(app, make_payload("deviceMoving"))
     await post_event(app, make_payload("media"))                   # tipo no listado
@@ -53,7 +45,7 @@ async def test_desactivados_por_defecto_y_no_listados(build):
 
 # -- override por dispositivo ----------------------------------------------------
 async def test_override_por_dispositivo(build):
-    app, rec, _ = build({
+    app, rec, _, _, _ = build({
         "device_overrides": {
             "1234567890": {"deviceMoving": {"enabled": True, "category": "info"}}
         }
@@ -61,16 +53,16 @@ async def test_override_por_dispositivo(build):
     await post_event(app, make_payload("deviceMoving", unique_id="1234567890"))
     await post_event(app, make_payload("deviceMoving", unique_id="OTRO"))  # sin override
     assert len(rec.sent) == 1
-    assert rec.sent[0][0].startswith("SinoTrack ST-906L")
+    assert rec.sent[0][1].startswith("SinoTrack ST-906L")
 
 
 # -- moving_ignition_off -----------------------------------------------------------
 async def test_moving_ignition_off(build):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
     # ignition=false -> avisa aunque deviceMoving esté desactivado
     await post_event(app, make_payload("deviceMoving", ignition=False))
     assert len(rec.sent) == 1
-    assert "Moviéndose sin contacto" in rec.sent[0][0]
+    assert "Moviéndose sin contacto" in rec.sent[0][1]
 
     rec.sent.clear()
     await post_event(app, make_payload("deviceMoving", ignition=True))
@@ -80,7 +72,7 @@ async def test_moving_ignition_off(build):
 
 # -- offline_sustained ---------------------------------------------------------------
 async def test_offline_sustained_cancelado_por_reconexion(build):
-    app, rec, clock = build()
+    app, rec, clock, _, _ = build()
     await post_event(app, make_payload("deviceOffline"))
     clock.advance(0.5)                                    # ciclo de 30 s del ST-906L
     await post_event(app, make_payload("deviceOnline"))
@@ -90,13 +82,16 @@ async def test_offline_sustained_cancelado_por_reconexion(build):
 
 
 async def test_offline_sustained_dispara_tras_minutos(build):
-    app, rec, clock = build()
+    app, rec, clock, _, _ = build()
     await post_event(app, make_payload("deviceOffline", speed=0.0))
     clock.advance(16)
     app.state.scheduler.check_due()
+    import asyncio
     await asyncio.sleep(0)          # deja ejecutar la tarea de envío
+    await asyncio.gather(*list(app.state.send_tasks), return_exceptions=True)
     assert len(rec.sent) == 1
-    title, body, category, click = rec.sent[0]
+    topic, title, body, category, click = rec.sent[0]
+    assert topic == "admin-prueba"
     assert category == "urgent"
     assert "Sin reportar" in title
     assert "Sin reportar desde" in body and "15 min" in body
@@ -104,7 +99,7 @@ async def test_offline_sustained_dispara_tras_minutos(build):
 
 
 async def test_offline_sustained_disabled(build):
-    app, rec, clock = build({"special": {"offline_sustained": {"enabled": False}}})
+    app, rec, clock, _, _ = build({"special": {"offline_sustained": {"enabled": False}}})
     await post_event(app, make_payload("deviceOffline"))
     clock.advance(16)
     app.state.scheduler.check_due()
@@ -113,7 +108,7 @@ async def test_offline_sustained_disabled(build):
 
 # -- cooldown ---------------------------------------------------------------------------
 async def test_cooldown(build):
-    app, rec, clock = build()
+    app, rec, clock, _, _ = build()
     await post_event(app, make_payload("alarm", alarm="sos"))
     await post_event(app, make_payload("alarm", alarm="sos"))
     assert len(rec.sent) == 1                      # el segundo queda en cooldown
@@ -122,9 +117,9 @@ async def test_cooldown(build):
     assert len(rec.sent) == 2
 
 
-# -- token ---------------------------------------------------------------------------------
+# -- token ---------------------------------------------------------------------------
 async def test_token(build):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
     r = await post_event(app, make_payload("alarm", alarm="sos"), token=None)
     assert r.status_code == 401
     r = await post_event(app, make_payload("alarm", alarm="sos"), token="malo")
@@ -134,7 +129,7 @@ async def test_token(build):
 
 # -- ntfy no bloquea ------------------------------------------------------------------------
 async def test_ntfy_fallo_no_bloquea(build, monkeypatch):
-    app, rec, _ = build()
+    app, rec, _, _, _ = build()
 
     class Boom:
         async def send(self, *a, **k):
@@ -160,8 +155,9 @@ async def test_ntfy_json_utf8(monkeypatch):
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: ctx())
 
-    notifier = Notifier("http://ntfy.test", "alertas-prueba")
-    ok = await notifier.send("Auto: Vibración detectada", "Hora: 2026-09-29 17:00", "urgent",
+    notifier = Notifier("http://ntfy.test")
+    ok = await notifier.send("alertas-prueba", "Auto: Vibración detectada",
+                             "Hora: 2026-09-29 17:00", "urgent",
                              "https://www.openstreetmap.org/?mlat=-17.78&mlon=-63.18")
     assert ok is True
     assert len(cuerpos) == 1

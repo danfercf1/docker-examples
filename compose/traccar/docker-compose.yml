@@ -53,14 +53,25 @@ services:
   traccar-ntfy:
     build: ./ntfy-gateway
     restart: unless-stopped
+    depends_on:
+      traccar:
+        condition: service_healthy
     environment:
       GATEWAY_TOKEN: ${TRACCAR_NTFY_GATEWAY_TOKEN:?TRACCAR_NTFY_GATEWAY_TOKEN no definido en .env}
-      NTFY_TOPIC_ALERTS: ${NTFY_TOPIC_ALERTS:?NTFY_TOPIC_ALERTS no definido en .env}
+      NTFY_TOPIC_ADMIN: ${NTFY_TOPIC_ADMIN:?NTFY_TOPIC_ADMIN no definido en .env}
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       COOLDOWN_MINUTES: ${COOLDOWN_MINUTES:-10}
       OFFLINE_SUSTAINED_MINUTES: ${OFFLINE_SUSTAINED_MINUTES:-15}
+      TRACCAR_URL: ${TRACCAR_URL:-http://traccar:8082}
+      TRACCAR_API_TOKEN: ${TRACCAR_API_TOKEN:?TRACCAR_API_TOKEN no definido en .env}
+      TRACCAR_SERVICE_USER: ${TRACCAR_SERVICE_USER:?TRACCAR_SERVICE_USER no definido en .env}
+      TRACCAR_CACHE_SECONDS: ${TRACCAR_CACHE_SECONDS:-300}
+      STATE_DB: /srv/state/gateway.db
+      SENT_LOG_DAYS: ${SENT_LOG_DAYS:-90}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ./ntfy-gateway/config/events.yaml:/srv/config/events.yaml:ro
+      - traccar-ntfy-state:/srv/state
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8080/health')\""]
       interval: 30s
@@ -79,3 +90,7 @@ volumes:
   traccar-db-data:
   traccar-logs:
   traccar-data:
+  # Estado del gateway ntfy (cooldowns, temporizadores, historial de envíos).
+  # Reconstruible: NO forma parte de las copias de seguridad (ver
+  # ntfy-gateway/docs/MANUAL-ADMIN.md).
+  traccar-ntfy-state:

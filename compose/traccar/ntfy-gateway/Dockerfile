@@ -14,6 +14,10 @@ COPY app ./app
 # Config por defecto; en producción compose la monta :ro por encima
 COPY config/events.yaml ./config/events.yaml
 
+# El volumen con nombre traccar-ntfy-state se monta vacío en /srv/state y
+# hereda el dueño del directorio creado aquí (debe existir ANTES del USER).
+RUN mkdir -p /srv/state && chown appuser:appuser /srv/state
+
 USER appuser
 EXPOSE 8080
 
