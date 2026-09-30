@@ -12,20 +12,30 @@ umask 077
 DEST_DIR="/home/danfercf/backups/traccar"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 
+FAIL_REASON=""
 notify_fail() {
-    local detail="${1:-${BASH_COMMAND:-desconocido}}"
-    curl -fsS -H "Title: VPS: backup de Traccar FALLÓ" \
+    local detail="${1:-desconocido}"
+    [[ -n "${NTFY_TOPIC:-}" ]] || return 0
+    curl -fsS -m 10 -H "Title: VPS: backup de Traccar FALLÓ" \
         -d "Falló: ${detail}" "https://ntfy.sh/${NTFY_TOPIC}" \
         >/dev/null 2>&1 || true
 }
 
 die() {
     echo "ERROR: $*" >&2
-    notify_fail "$*"
+    FAIL_REASON="$*"
     exit 1
 }
 
-trap 'notify_fail' ERR
+# El trap ERR solo REGISTRA el motivo; el aviso sale siempre desde on_exit,
+# así todo camino de fallo (die o comando inesperado) avisa exactamente una vez.
+trap 'FAIL_REASON="${BASH_COMMAND:-desconocido}"' ERR
+on_exit() {
+    local rc=$?
+    (( rc == 0 )) && return 0
+    notify_fail "${FAIL_REASON:-exit ${rc}}"
+}
+trap on_exit EXIT
 
 # --- Validación de configuración -------------------------------------------
 if [[ -z "${NTFY_TOPIC:-}" ]]; then

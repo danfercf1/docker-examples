@@ -22,7 +22,7 @@ VPS (03:00 La Paz)                    Vostro (05:00 La Paz)
 |---|---|---|
 | `traccar-backup.sh` | VPS | `pg_dump -Fc` del contenedor (localizado por etiquetas de compose), validación con `pg_restore -l`, rotación (14 días por defecto) |
 | `traccar-backup.service` / `.timer` | VPS | systemd: diario a las 03:00 America/La_Paz |
-| `traccar-backup-pull.sh` | Vostro | `rsync -a` por SSH con clave dedicada restringida, rotación local (60 días por defecto) |
+| `traccar-backup-pull.sh` | Vostro | `rsync -a` por SSH con clave dedicada restringida, rotación local (60 días por defecto), comprobación de frescura del volcado y latido a Uptime Kuma |
 | `traccar-backup-pull.service` / `.timer` | Vostro | systemd: diario a las 05:00 America/La_Paz |
 | `traccar-restore-test.sh` | ambas | Restaura un `.dump` en un postgres temporal y muestra conteos (`tc_devices`, `tc_positions`, `tc_users`) y última posición |
 
@@ -30,8 +30,17 @@ Configuración de cada script va en un EnvironmentFile en `/etc/` (root:root,
 600), no en el repo:
 
 - VPS: `/etc/traccar-backup.env` (`NTFY_TOPIC` obligatorio, `RETENTION_DAYS`)
-- Vostro: `/etc/traccar-backup-pull.env` (`NTFY_TOPIC` obligatorio,
-  `RETENTION_DAYS`, `LOCAL_DIR`, `REMOTE_SRC`, `SSH_KEY`)
+- Vostro: `/etc/traccar-backup-pull.env` — variables:
+
+  | Variable | Por defecto | Obligatoria | Descripción |
+  |---|---|---|---|
+  | `NTFY_TOPIC` | — | sí | Aviso por ntfy.sh **solo en fallo** |
+  | `RETENTION_DAYS` | 60 | no | Rotación local de volcados |
+  | `LOCAL_DIR` | `/home/daniel/backups/traccar-vps` | no | Destino del pull |
+  | `MAX_AGE_HOURS` | 25 | no | Antigüedad máxima del volcado más reciente. Con volcado a las 03:00 y pull a las 05:00, un volcado perdido deja el anterior con ~26 h; con 25 se detecta el primer día |
+  | `KUMA_PUSH_URL` | vacía | no | Latido `status=up` al monitor Push de Uptime Kuma tras pull correcto y volcado fresco |
+  | `REMOTE_SRC` | `danfercf@danfercf.online:./` | no | Origen visto por rrsync (la ruta es relativa al directorio restringido de la clave) |
+  | `SSH_KEY` | `/home/daniel/.ssh/traccar-backup` | no | Clave SSH dedicada |
 
 ---
 
@@ -129,6 +138,35 @@ ls -l /home/daniel/backups/traccar-vps/
 > **Nota:** el script usa `BatchMode=yes`: si la huella del VPS no está en
 > `known_hosts` de `daniel`, la conexión falla en vez de pedir confirmación
 > (ver la primera conexión manual más arriba).
+
+### Monitor en Uptime Kuma (Vostro)
+
+El pull envía un latido `status=up` tras cada copia correcta y con el
+volcado fresco. Si el latido falta, Kuma avisa. Configuración:
+
+1. En Kuma: **Add New Monitor** → tipo **Push**.
+2. **Heartbeat Interval: 93600 s (26 h)**, **Retries: 0**. El pull corre a
+   las 05:00 diarias; 26 h da 2 h de margen sobre las 24 h entre ejecuciones
+   sin falsos positivos, y la frescura del volcado (≤25 h) la valida el
+   propio script.
+3. Copiar la **Push URL** (`http://localhost:3001/api/push/<token>`) a
+   `KUMA_PUSH_URL` en `/etc/traccar-backup-pull.env`.
+
+Si el curl a Kuma falla (Kuma caído, reiniciando…), el script solo escribe
+un aviso en stderr/journalctl: la copia sigue siendo válida y, precisamente,
+será Kuma quien —al no recibir latidos— avise de que está caído.
+
+### Qué cubre cada aviso
+
+| Canal | Cuándo salta |
+|---|---|
+| **ntfy.sh** | Fallo explícito del pull o del backup del VPS: rsync/SSH caído, clave ausente, volcado demasiado viejo (`volcado demasiado viejo: … tiene N h`), variable inválida, pg_dump falló, etc. |
+| **Uptime Kuma (falta de latido)** | El pull no llegó a ejecutarse o no completó: timer detenido/deshabilitado, Vostro apagado o sin red mucho tiempo, o el script rompiendo antes del push a Kuma. Nota: solo marca *down* tras el primer latido recibido; si nunca ha latido, queda pendiente |
+| **Uptime Kuma (caído Kuma)** | Si Kuma está caído el curl del latido falla: aviso en journalctl, backup válido, y Kuma no puede avisar de sí mismo |
+
+Los fallos por `die` y por comandos inesperados avisan siempre exactamente
+una vez: el trap `ERR` registra el motivo y el trap `EXIT` envía el aviso
+si el código de salida no es 0.
 
 ## Probar un volcado (restore-test)
 
