@@ -7,14 +7,15 @@
 #   NTFY_TOPIC     topic de ntfy.sh para avisar SOLO en fallo (obligatorio)
 #   RETENTION_DAYS días de retención local (por defecto 60)
 #   LOCAL_DIR      destino local (por defecto /home/daniel/backups/traccar-vps)
+#   REMOTE_SRC     origen remoto visto por rrsync (por defecto danfercf@danfercf.online:./)
+#   SSH_KEY        clave SSH dedicada (por defecto /home/daniel/.ssh/traccar-backup)
 set -euo pipefail
 umask 077
 
-REMOTE="danfercf@danfercf.online"
-REMOTE_DIR="/home/danfercf/backups/traccar/"
 LOCAL_DIR="${LOCAL_DIR:-/home/daniel/backups/traccar-vps}"
 RETENTION_DAYS="${RETENTION_DAYS:-60}"
-SSH_KEY="${SSH_KEY:-${HOME}/.ssh/traccar-backup}"
+REMOTE_SRC="${REMOTE_SRC:-danfercf@danfercf.online:./}"
+SSH_KEY="${SSH_KEY:-/home/daniel/.ssh/traccar-backup}"
 
 notify_fail() {
     local detail="${1:-${BASH_COMMAND:-desconocido}}"
@@ -42,8 +43,8 @@ fi
 mkdir -p "${LOCAL_DIR}"
 
 # --- Pull por SSH con la clave dedicada --------------------------------------
-echo "==> rsync ${REMOTE}:${REMOTE_DIR} -> ${LOCAL_DIR}/"
-rsync -a -e "ssh -i ${SSH_KEY}" "${REMOTE}:${REMOTE_DIR}" "${LOCAL_DIR}/"
+echo "==> rsync ${REMOTE_SRC} -> ${LOCAL_DIR}/"
+rsync -a -e "ssh -i ${SSH_KEY} -o BatchMode=yes" "${REMOTE_SRC}" "${LOCAL_DIR}/"
 
 # --- Retención local propia (independiente de la del VPS) -------------------
 find "${LOCAL_DIR}" -maxdepth 1 -name 'traccar-*.dump' \

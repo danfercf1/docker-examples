@@ -31,7 +31,7 @@ Configuración de cada script va en un EnvironmentFile en `/etc/` (root:root,
 
 - VPS: `/etc/traccar-backup.env` (`NTFY_TOPIC` obligatorio, `RETENTION_DAYS`)
 - Vostro: `/etc/traccar-backup-pull.env` (`NTFY_TOPIC` obligatorio,
-  `RETENTION_DAYS`, `LOCAL_DIR`)
+  `RETENTION_DAYS`, `LOCAL_DIR`, `REMOTE_SRC`, `SSH_KEY`)
 
 ---
 
@@ -78,27 +78,30 @@ backups** (sin shell completo). Editar con vim:
 vim ~/.ssh/authorized_keys
 ```
 
-Añadir la clave pública con `restrict` (implica no-pty, no-port-forwarding,
-etc.) y forzando `rrsync` en solo lectura sobre ese directorio:
+Añadir la clave pública forzando `rrsync` en solo lectura sobre ese
+directorio (la ruta remota que ve el cliente es relativa a esa carpeta,
+por eso el origen en el script es `danfercf@danfercf.online:./`):
 
 ```
-restrict,command="/usr/local/bin/rrsync -ro /home/danfercf/backups/traccar" ssh-ed25519 AAAA... traccar-backup-vostro
+command="/usr/bin/rrsync -ro /home/danfercf/backups/traccar",restrict ssh-ed25519 AAAA... traccar-backup-vostro
 ```
 
-Localizar `rrsync` en Ubuntu 22.04:
+En Ubuntu 22.04 `rrsync` ya está instalado en `/usr/bin/rrsync`
+(comprobar con `command -v rrsync`); solo si no existiera, viene comprimido
+en `/usr/share/doc/rsync/scripts/rrsync.gz`:
 
 ```bash
-command -v rrsync            # a veces ya está en el PATH
-# si no, viene comprimido dentro del paquete rsync:
 sudo zcat /usr/share/doc/rsync/scripts/rrsync.gz | sudo tee /usr/local/bin/rrsync > /dev/null
 sudo chmod 755 /usr/local/bin/rrsync
 ```
 
-Comprobar desde el Vostro que la clave solo lista el directorio permitido:
+Antes de que funcione el timer, la **primera conexión debe hacerse a mano**
+(para aceptar la huella del VPS en `known_hosts` del usuario `daniel`;
+el script usa `BatchMode=yes` y fallaría sin esa huella):
 
 ```bash
-rsync -a -e "ssh -i ~/.ssh/traccar-backup" danfercf@danfercf.online:/home/danfercf/backups/traccar/ /tmp/probe/
-# debe copiar los volcados; un intento de `ssh ... true` o de leer otra ruta falla
+rsync -a -e "ssh -i ~/.ssh/traccar-backup" danfercf@danfercf.online:./ /tmp/probe/
+# debe listar los .dump; un intento de leer otra ruta o de abrir shell falla
 ```
 
 ### 2. Servicio
@@ -123,9 +126,9 @@ journalctl -u traccar-backup-pull.service -n 50 --no-pager
 ls -l /home/daniel/backups/traccar-vps/
 ```
 
-> **Nota:** la primera conexión SSH debe aceptar la clave de host. Si el
-> timer falla con "Host key verification failed", hacer una vez:
-> `ssh-keyscan danfercf.online >> ~/.ssh/known_hosts` (como `daniel`).
+> **Nota:** el script usa `BatchMode=yes`: si la huella del VPS no está en
+> `known_hosts` de `daniel`, la conexión falla en vez de pedir confirmación
+> (ver la primera conexión manual más arriba).
 
 ## Probar un volcado (restore-test)
 
