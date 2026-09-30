@@ -35,51 +35,89 @@ subas al repositorio, y si sospechas que se filtró, revócalo de inmediato
 
 Traccar no permite generar un token con caducidad larga desde el panel; se
 hace con dos llamadas a la API, iniciando sesión con el usuario de
-servicio. Para no dejar la contraseña visible en el historial de la shell
-ni en `ps`, pídela de forma interactiva y bórrala de las variables de
-entorno al terminar; la cookie de sesión (`cookies.txt`) es también
-sensible mientras exista, así que se crea con permisos restrictivos y se
-borra al final:
+servicio.
+
+**Contraseña sin pasarla como argumento ni tocar `read`:** en la primera
+prueba en el VPS, pegar la contraseña con `read -rs -p ...` metió
+caracteres de más (75 leídos para una contraseña de 14: el terminal/gestor
+de contraseñas añadió bytes invisibles al pegar) y el login devolvió 401.
+En vez de eso, asigna la variable directamente **con un espacio inicial en
+la línea** — con `HISTCONTROL=ignoreboth` (o `ignorespace`) activo, bash no
+guarda en el historial una línea que empieza con espacio, así que la
+contraseña no queda en `~/.bash_history`. Compruébalo primero:
+
+```bash
+echo "$HISTCONTROL"
+# Debe mostrar "ignoreboth" o "ignorespace". Si no muestra ninguno de los
+# dos, actívalo ANTES de continuar:
+#   export HISTCONTROL=ignoreboth
+```
 
 ```bash
 umask 077                              # cookies.txt nace con permisos 600
-read -rs -p "Contraseña de gateway-ntfy: " TRACCAR_PASS; echo
+
+# OJO: la contraseña va entre comillas simples. Si tu contraseña contiene
+# una comilla simple ('), este método no sirve tal cual (la comilla la
+# corta a mitad) — usa otra contraseña para esta cuenta, o edita la línea
+# con el escape de shell correspondiente.
+ TRACCAR_PASS='la-contraseña-exacta-de-gateway-ntfy'
 
 # 1. Inicia sesión (guarda la cookie de sesión en cookies.txt)
-curl -c cookies.txt -X POST https://gps.dfcfhub.org/api/session \
+curl -s -c cookies.txt -X POST https://gps.dfcfhub.org/api/session \
   --data-urlencode "email=gateway@tudominio.example" \
   --data-urlencode "password=$TRACCAR_PASS"
 
 unset TRACCAR_PASS
 
-# 2. Genera el token con expiración explícita (ajusta la fecha a ~1 año)
-curl -b cookies.txt -X POST https://gps.dfcfhub.org/api/session/token \
-  --data-urlencode "expiration=2027-09-29T00:00:00.000+0000"
+# 2. Genera el token con expiración explícita (~1 año). El formato debe
+#    ser ISO-8601 con "Z"; "2027-09-30T00:00:00.000+0000" (con milisegundos
+#    y offset numérico) devuelve 400 FormParamException.
+TRACCAR_API_TOKEN=$(curl -s -b cookies.txt -X POST https://gps.dfcfhub.org/api/session/token \
+  --data-urlencode "expiration=2027-09-30T00:00:00Z")
 
 rm -f cookies.txt
+
+# 3. Comprueba que no vino un error (Traccar devuelve un cuerpo con
+#    "Exception" en el mensaje) sin imprimir el token completo si salió bien
+if [[ "$TRACCAR_API_TOKEN" == *Exception* ]]; then
+  echo "ERROR generando el token: ${TRACCAR_API_TOKEN:0:200}"
+else
+  echo "Token generado (${#TRACCAR_API_TOKEN} caracteres)"
+fi
+
+# 4. Pruébalo: debe devolver 200, no 401/403
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "Authorization: Bearer $TRACCAR_API_TOKEN" https://gps.dfcfhub.org/api/users
+
+# 5. Si dio 200, escríbelo en el .env SIN mostrarlo en pantalla. Si ya
+#    existía una línea TRACCAR_API_TOKEN= (p. ej. al rotar), bórrala antes
+#    para no dejar dos valores conflictivos:
+sed -i '/^TRACCAR_API_TOKEN=/d' .env
+echo "TRACCAR_API_TOKEN=$TRACCAR_API_TOKEN" >> .env
+unset TRACCAR_API_TOKEN
 ```
 
-La respuesta es el token en texto plano. Traccar no lo vuelve a mostrar:
-cópialo de inmediato a `TRACCAR_API_TOKEN` en tu `.env`. Sin `expiration`,
-el token caduca a los 7 días (pensado para sesiones normales, no para un
-servicio).
+Sin `expiration`, el token caduca a los 7 días (pensado para sesiones
+normales, no para un servicio).
 
 ### Rotar el token
 
-Repite el paso 2 (genera uno nuevo) y actualiza `TRACCAR_API_TOKEN` en el
-`.env` del VPS; reinicia el gateway. El token anterior sigue siendo válido
-hasta su expiración salvo que lo revoques explícitamente (misma
-precaución con la contraseña y la cookie que en el paso anterior):
+Repite el paso 2 completo (genera uno nuevo con la misma precaución de la
+contraseña; el `sed`+`echo >>` final ya reemplaza la línea anterior en el
+`.env`), reinicia el gateway (`docker compose up -d traccar-ntfy`). El
+token anterior sigue siendo válido hasta su expiración salvo que lo
+revoques explícitamente:
 
 ```bash
+echo "$HISTCONTROL"   # ignoreboth o ignorespace (ver arriba)
 umask 077
-read -rs -p "Contraseña de gateway-ntfy: " TRACCAR_PASS; echo
-curl -c cookies.txt -X POST https://gps.dfcfhub.org/api/session \
+ TRACCAR_PASS='la-contraseña-exacta-de-gateway-ntfy'
+curl -s -c cookies.txt -X POST https://gps.dfcfhub.org/api/session \
   --data-urlencode "email=gateway@tudominio.example" \
   --data-urlencode "password=$TRACCAR_PASS"
 unset TRACCAR_PASS
 
-curl -b cookies.txt -X POST https://gps.dfcfhub.org/api/session/token/revoke \
+curl -s -b cookies.txt -X POST https://gps.dfcfhub.org/api/session/token/revoke \
   --data-urlencode "token=EL_TOKEN_A_REVOCAR"
 
 rm -f cookies.txt
@@ -122,9 +160,25 @@ Si ya usabas el gateway anterior (todo a un solo tema):
    haces `docker compose up` sin este cambio, falla al arrancar porque
    `NTFY_TOPIC_ADMIN` es obligatoria y no estará definida.
 2. Además, configura ese mismo tema como atributo `ntfyTopic` de **tu
-   propio usuario** en Traccar (paso 5) si quieres seguir recibiendo tú
-   personalmente todo lo que antes recibías.
-3. Sin hacer nada más, el comportamiento es idéntico al actual: ningún
+   propio usuario** en Traccar (panel → tu cuenta → Atributos → añadir
+   `ntfyTopic` = el mismo valor de `NTFY_TOPIC_ADMIN`; mismos pasos que
+   `MANUAL-USUARIO.md` §2) si quieres seguir recibiendo tú personalmente
+   todo lo que antes recibías.
+3. Comprueba por API que el atributo quedó guardado, sin mostrar el valor
+   del tema en pantalla (usa el `TRACCAR_API_TOKEN` ya generado):
+
+   ```bash
+   curl -s -H "Authorization: Bearer $TRACCAR_API_TOKEN" https://gps.dfcfhub.org/api/users \
+     | python3 -c '
+   import json, sys
+   for u in json.load(sys.stdin):
+       attrs = u.get("attributes") or {}
+       print(f"{u.get(\"name\")}: ntfyTopic: {\"sí\" if attrs.get(\"ntfyTopic\") else \"no\"}")
+   '
+   ```
+
+   Debe mostrar `ntfyTopic: sí` junto a tu nombre de usuario.
+4. Sin hacer nada más, el comportamiento es idéntico al actual: ningún
    dispositivo tiene `ntfyProfile` ni ningún usuario tiene `ntfyTopic`
    propio, así que todo sigue cayendo en el tema de respaldo.
 
@@ -142,7 +196,7 @@ Si ya usabas el gateway anterior (todo a un solo tema):
    forma directa con cada usuario que deba recibir avisos de él.
 3. Pide al usuario que siga `MANUAL-USUARIO.md` para configurar su propio
    tema de ntfy (`ntfyTopic`), o hazlo tú mismo editando sus atributos
-   (paso 5).
+   (panel → el usuario → Atributos → añadir `ntfyTopic`).
 
 ### Un administrador que quiere recibir avisos de TODOS los dispositivos
 
